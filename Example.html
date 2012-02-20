@@ -1,11 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<style type="text/css">
+		body {
+			background-color: #000;
+			color: #fff;
+			font-family: sans-serif;
+		}
+		
+		.dropUpload .dropArea {
+			background-color: rgba(255,255,255, .3);
+			height: 120px;
+			margin: 10px 0;
+			width: 200px;
+		}
+
+		.dropUpload .messages {
+			font-family: monospace;
+		}
+	</style>
+
 	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+	<script type="text/javascript" src="jquery.dropUpload.js"></script>
 </head>
 <body>
 
-	<form action="/ReceiveFile.php" method="post">
+	<form action="ReceiveFile.php" method="post">
 		<div class="dropUpload">
 			
 			<input type="text" name="customVariable1" value="Just a custom variable that are attached to the file on at drop-time">
@@ -20,9 +40,9 @@
 				</div>
 			</div>
 
-			<div class="messages">
+			<pre class="messages">
 
-			</div>
+			</pre>
 
 		</div>
 	</form>
@@ -76,10 +96,7 @@
 			},
 			'onUploadSucceeded': function(File, response)
 			{
-				var json = jQuery.parseJSON(response);
-
-				if( json && json.length )
-					messages.prepend(json[0].html);
+				messages.text(response);
 			}
 		});
 	</script>
