@@ -1,448 +1,327 @@
-/*
- * Default text - jQuery plugin for html5 dragging files from desktop to browser
- *
- * Author: Weixi Yen
- *
- * Email: [Firstname][Lastname]@gmail.com
- *
- * Copyright (c) 2010 Resopollution
- *
- * Licensed under the MIT license:
- *   http://www.opensource.org/licenses/mit-license.php
- *
- * Project home:
- *   http://www.github.com/weixiyen/jquery-filedrop
- *
- * Version:  0.1.0
- *
- * Features:
- *      Allows sending of extra parameters with file.
- *      Works with Firefox 3.6+
- *      Future-compliant with HTML5 spec (will work with Webkit browsers and IE9)
- * Usage:
- * 	See README at project homepage
- *
- */
-;(function($) {
+var dropUploadQueue = [];
+
+(function( $ ){
   jQuery.event.props.push("dataTransfer");
 
-  var opts = {},
-  default_opts = {
-    fallback_id: '',
-    url: '',
-    refresh: 1000,
-    paramname: 'userfile',
-    maxfiles: 25,           // Ignored if queuefiles is set > 0
-    maxfilesize: 1,         // MB file size limit
-    queuefiles: 0,          // Max files before queueing (for large volume uploads)
-    queuewait: 200,         // Queue wait time if full
-    data: {},
-    headers: {},
-    drop: empty,
-    dragEnter: empty,
-    dragOver: empty,
-    dragLeave: empty,
-    docEnter: empty,
-    docOver: empty,
-    docLeave: empty,
-    beforeEach: empty,
-    afterAll: empty,
-    rename: empty,
-    error: function(err, file, i) {
-      alert(err);
-    },
-    uploadStarted: empty,
-    uploadFinished: empty,
-    progressUpdated: empty,
-    speedUpdated: empty
-  },
-  errors = ["BrowserNotSupported", "TooManyFiles", "FileTooLarge"],
-  doc_leave_timer, 
-  stop_loop = false, 
-  files_count = 0, 
-  files;
-  
-  function empty() {}
-
-  $.fn.filedrop = function(method) {
-    var methods = {
-      init : function(options) {
-        // Already initialized
-        if($(this).data('filedrop') != undefined || $(this).data('filedrop') != null)
-          return false;
-        
-        var tb = new filedropInstance(this, options);
-        tb.init();
-        $(this).data('filedrop',tb);
-      },
-      
-      destroy : function( ) { 
-        $(this).data('filedrop').destroy();
-        $(this).data('filedrop',null);
-      }
-    };
-    
-    if ( methods[method] ) {
-      return methods[method].apply( this, Array.prototype.slice.call( arguments, 1 ));
-    } else if ( typeof method === 'object' || ! method ) {
-      return methods.init.apply( this, arguments );
-    } else {
-      $.error( 'Method ' +  method + ' does not exist on jQuery.filedrop' );
-    }
-
-
-    function filedropInstance(element, options) {
-
-      this.init = function() {
-        opts = $.extend({}, default_opts, options);
-
-        element.bind('drop.filedrop', drop).bind('dragenter.filedrop', dragEnter).bind('dragover.filedrop', dragOver).bind('dragleave.filedrop', dragLeave);
-        $(document).bind('drop.filedrop', docDrop).bind('dragenter.filedrop', docEnter).bind('dragover.filedrop', docOver).bind('dragleave.filedrop', docLeave);
-
-        $('#' + opts.fallback_id).bind('change.filedrop', function(e) {
-          opts.drop(e);
-          files = e.target.files;
-          files_count = files.length;
-          upload();
-        });
-      };
-      
-      this.destroy = function() {
-        element.unbind('.filedrop');
-        $(document).unbind('.filedrop');
-        $('#' + opts.fallback_id).unbind('.filedrop');
-      };
-
-      function drop(e) {
-        opts.drop(e);
-        files = e.dataTransfer.files;
-        if (files === null || files === undefined) {
-          opts.error(errors[0]);
-          return false;
-        }
-        files_count = files.length;
-        upload();
-        e.preventDefault();
-        return false;
-      }
-
-      function getBuilder(filename, filedata, mime, boundary) {
-        var dashdash = '--',
-            crlf = '\r\n',
-            builder = '';
-
-        if (opts.data) {
-          var params = $.param(opts.data).split(/&/);
-
-          $.each(params, function() {
-            var pair = this.split(/=/, 2);
-            var name = decodeURI(pair[0]);
-            var val = decodeURI(pair[1]);
-
-            builder += dashdash;
-            builder += boundary;
-            builder += crlf;
-            builder += 'Content-Disposition: form-data; name="' + name + '"';
-            builder += crlf;
-            builder += crlf;
-            builder += val;
-            builder += crlf;
-          });
-        }
-
-        builder += dashdash;
-        builder += boundary;
-        builder += crlf;
-        builder += 'Content-Disposition: form-data; name="' + opts.paramname + '"';
-        builder += '; filename="' + filename + '"';
-        builder += crlf;
-
-        builder += 'Content-Type: ' + mime;
-        builder += crlf;
-        builder += crlf;
-
-        builder += filedata;
-        builder += crlf;
-
-        builder += dashdash;
-        builder += boundary;
-        builder += dashdash;
-        builder += crlf;
-        return builder;
-      }
-
-      function progress(e) {
-        if (e.lengthComputable) {
-          var percentage = Math.round((e.loaded * 100) / e.total);
-          if (this.currentProgress != percentage) {
-
-            this.currentProgress = percentage;
-            opts.progressUpdated(this.index, this.file, this.currentProgress);
-
-            var elapsed = new Date().getTime();
-            var diffTime = elapsed - this.currentStart;
-            if (diffTime >= opts.refresh) {
-              var diffData = e.loaded - this.startData;
-              var speed = diffData / diffTime; // KB per second
-              opts.speedUpdated(this.index, this.file, speed);
-              this.startData = e.loaded;
-              this.currentStart = elapsed;
-            }
-          }
-        }
-      }
-
-      // Respond to an upload
-      function upload() {
-
-        stop_loop = false;
-
-        if (!files) {
-          opts.error(errors[0]);
-          return false;
-        }
-
-        var filesDone = 0,
-            filesRejected = 0;
-
-        if (files_count > opts.maxfiles && opts.queuefiles === 0) {
-          opts.error(errors[1]);
-          return false;
-        }
-
-        // Define queues to manage upload process
-        var workQueue = [];
-        var processingQueue = [];
-        var doneQueue = [];
-
-        // Add everything to the workQueue
-        for (var i = 0; i < files_count; i++) {
-          workQueue.push(i);
-        }
-
-        // Helper function to enable pause of processing to wait
-        // for in process queue to complete
-        var pause = function(timeout) {
-            setTimeout(process, timeout);
-            return;
-        }
-
-        // Process an upload, recursive
-        var process = function() {
-
-              var fileIndex;
-
-              if (stop_loop) return false;
-
-              // Check to see if are in queue mode
-              if (opts.queuefiles > 0 && processingQueue.length >= opts.queuefiles) {
-
-                return pause(opts.queuewait);
-
-              } else {
-
-                // Take first thing off work queue
-                fileIndex = workQueue[0];
-                workQueue.splice(0, 1);
-
-                // Add to processing queue
-                processingQueue.push(fileIndex);
-
-              }
-
-              try {
-                if (beforeEach(files[fileIndex]) != false) {
-                  if (fileIndex === files_count) return;
-                  var reader = new FileReader(),
-                      max_file_size = 1048576 * opts.maxfilesize;
-
-                  reader.index = fileIndex;
-                  if (files[fileIndex].size > max_file_size) {
-                    opts.error(errors[2], files[fileIndex], fileIndex);
-                    // Remove from queue
-                    processingQueue.forEach(function(value, key) {
-                      if (value === fileIndex) processingQueue.splice(key, 1);
-                    });
-                    filesRejected++;
-                    return true;
-                  }
-                  reader.onloadend = send;
-                  reader.readAsBinaryString(files[fileIndex]);
-
-                } else {
-                  filesRejected++;
-                }
-              } catch (err) {
-                // Remove from queue
-                processingQueue.forEach(function(value, key) {
-                  if (value === fileIndex) processingQueue.splice(key, 1);
-                });
-                opts.error(errors[0]);
-                return false;
-              }
-
-              // If we still have work to do,
-              if (workQueue.length > 0) {
-                process();
-              }
-
-            };
-
-        var send = function(e) {
-
-          var fileIndex = ((typeof(e.srcElement) === "undefined") ? e.target : e.srcElement).index
-
-          // Sometimes the index is not attached to the
-          // event object. Find it by size. Hack for sure.
-          if (e.target.index == undefined) {
-            e.target.index = getIndexBySize(e.total);
-          }
-
-          var xhr = new XMLHttpRequest(),
-              upload = xhr.upload,
-              file = files[e.target.index],
-              index = e.target.index,
-              start_time = new Date().getTime(),
-              boundary = '------multipartformboundary' + (new Date).getTime(),
-              builder;
-
-          newName = rename(file.name);
-          mime = file.type
-          if (typeof newName === "string") {
-            builder = getBuilder(newName, e.target.result, mime, boundary);
-          } else {
-            builder = getBuilder(file.name, e.target.result, mime, boundary);
-          }
-
-          upload.index = index;
-          upload.file = file;
-          upload.downloadStartTime = start_time;
-          upload.currentStart = start_time;
-          upload.currentProgress = 0;
-          upload.startData = 0;
-          upload.addEventListener("progress", progress, false);
-
-          xhr.open("POST", opts.url, true);
-          xhr.setRequestHeader('content-type', 'multipart/form-data; boundary=' + boundary);
-          xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-          // Add headers
-          $.each(opts.headers, function(k, v) {
-            xhr.setRequestHeader(k, v);
-          });
-
-          xhr.sendAsBinary(builder);
-
-          opts.uploadStarted(index, file, files_count);
-
-          xhr.onload = function() {
-            if (xhr.responseText) {
-              var now = new Date().getTime(),
-                  timeDiff = now - start_time,
-                  result = opts.uploadFinished(index, file, jQuery.parseJSON(xhr.responseText), timeDiff);
-              filesDone++;
-
-              // Remove from processing queue
-              processingQueue.forEach(function(value, key) {
-                if (value === fileIndex) processingQueue.splice(key, 1);
-              });
-
-              // Add to donequeue
-              doneQueue.push(fileIndex);
-
-              if (filesDone == files_count - filesRejected) {
-                afterAll();
-              }
-              if (result === false) stop_loop = true;
-            }
-          };
-
-        }
-
-        // Initiate the processing loop
-        process();
-
-      }
-
-      function getIndexBySize(size) {
-        for (var i = 0; i < files_count; i++) {
-          if (files[i].size == size) {
-            return i;
-          }
-        }
-
-        return undefined;
-      }
-
-      function rename(name) {
-        return opts.rename(name);
-      }
-
-      function beforeEach(file) {
-        return opts.beforeEach(file);
-      }
-
-      function afterAll() {
-        return opts.afterAll();
-      }
-
-      function dragEnter(e) {
-        clearTimeout(doc_leave_timer);
-        e.preventDefault();
-        opts.dragEnter(e);
-      }
-
-      function dragOver(e) {
-        clearTimeout(doc_leave_timer);
-        e.preventDefault();
-        opts.docOver(e);
-        opts.dragOver(e);
-      }
-
-      function dragLeave(e) {
-        clearTimeout(doc_leave_timer);
-        opts.dragLeave(e);
-        e.stopPropagation();
-      }
-
-      function docDrop(e) {
-        e.preventDefault();
-        opts.docLeave(e);
-        return false;
-      }
-
-      function docEnter(e) {
-        clearTimeout(doc_leave_timer);
-        e.preventDefault();
-        opts.docEnter(e);
-        return false;
-      }
-
-      function docOver(e) {
-        clearTimeout(doc_leave_timer);
-        e.preventDefault();
-        opts.docOver(e);
-        return false;
-      }
-
-      function docLeave(e) {
-        doc_leave_timer = setTimeout(function() {
-          opts.docLeave(e);
-        }, 200);
-      }
-
-      try {
-        if (XMLHttpRequest.prototype.sendAsBinary) return;
-        XMLHttpRequest.prototype.sendAsBinary = function(datastr) {
-          function byteValue(x) {
-            return x.charCodeAt(0) & 0xff;
-          }
-          var ords = Array.prototype.map.call(datastr, byteValue);
-          var ui8a = new Uint8Array(ords);
-          this.send(ui8a.buffer);
-        }
-      } catch (e) {}
-        
-    } // End of fileDropInstance()
-  }; // End of $.fn.filedrop()
-})(jQuery);
+	var
+		isLoopRunning = false,
+		loopSize = 0;
+
+	var emptyCallback = function() {};
+
+	var
+		settings = {},
+		default_settings = {
+			'fileDropCountMax': null,
+			'fileMeta': emptyCallback,
+			'fileParamName': 'dropUploadFile',
+			'fileSimTransfers': 1,
+			'fileSizeMax': null,
+
+			'onComplete': emptyCallback,
+			'onDropError': emptyCallback,
+			'onDropSuccess': emptyCallback,
+			'onDragEnter': emptyCallback,
+			'onDragOver': emptyCallback,
+			'onDragLeave': emptyCallback,
+
+			'onProgressUpdated': emptyCallback,
+
+			'onUploadCompleted': emptyCallback,
+			'onUploadFailed': function(File, message)
+			{
+				alert(message);
+			},
+			'onUploadQueued': emptyCallback,
+			'onUploadSucceeded': emptyCallback,
+			'onUploadStarted': emptyCallback,
+
+			'url': ''
+			},
+			queue = dropUploadQueue;
+
+	var eventDrop = function(e)
+	{
+		e.preventDefault();
+
+		try
+		{
+			if( !e.dataTransfer.files || e.dataTransfer.files.length == 0 )
+				throw("No files in array");
+
+			var FileList = e.dataTransfer.files;
+
+			if( settings.fileDropCountMax && FileList.length > settings.fileDropCountMax )
+				throw("Too many files");
+
+			settings.onDropSuccess();
+		}
+		catch(e)
+		{
+			settings.onDropError(e.message);
+			return false;
+		}
+
+
+		filesIterator(FileList, function(File) {
+			if( isFileAccepted(File) ) queueFile(File);
+		});
+
+
+		if( !isLoopRunning )
+			uploadLoopEngage();
+
+		return true;
+	}
+
+	var eventDragEnter = function(e)
+	{
+		//e.preventDefault();
+		settings.onDragEnter();
+	}
+
+	var eventDragLeave = function(e)
+	{
+		//e.preventDefault();
+		settings.onDragLeave();
+	}
+
+	var eventDragOver = function(e)
+	{
+		e.preventDefault();
+		settings.onDragOver();
+	}
+
+	// Just a method that disables default browser behavior for certian events
+	var eventKillDefault = function(e)
+	{
+		e.preventDefault();
+		return false;
+	}
+
+	// Lets us iterate over file lists in a consistent manner
+	var filesIterator = function(FileList, callback)
+	{
+		for(var index = 0; index < FileList.length; index++)
+			callback(FileList[index]);
+
+		return true;
+	}
+
+	var isFileAccepted = function(File)
+	{
+		if( settings.fileSizeMax && (File.size > settings.fileSizeMax) )
+			return false;
+
+		return true;
+	}
+
+	var queueFile = function(File)
+	{
+		var fileMeta;
+
+		File.meta = settings.fileMeta() || {};
+
+		settings.onUploadQueued(File);
+
+		queue.push(File);
+	}
+
+	var uploadLoopEngage = function()
+	{
+		isLoopRunning = true;
+
+		while(queue.length > 0 && loopSize < settings.fileSimTransfers)
+		{
+			var File = queue.shift();
+
+			try
+			{
+				uploadFile(File, uploadLoopEngage);
+			}
+			catch(e)
+			{
+				settings.onUploadFailed(File, e.message);
+			}
+		}
+
+		isLoopRunning = false;
+	}
+
+	var uploadFile = function(File, onCompleteCallback)
+	{
+		loopSize++;
+
+		var File = File;
+		var FR = new FileReader();
+
+		// Defines the call that is made when upload has stopped occuring
+		var uploadFinished = function()
+		{
+			loopSize--;
+
+			settings.onUploadCompleted(File);
+
+			if( typeof onCompleteCallback == 'function' )
+				onCompleteCallback();
+		}
+
+		FR.File = File;
+		FR.onload = function(e)
+		{
+			var
+				boundary	= '---------------------------7d01ecf406a6'; // Boundary should be a string that is unlikely to occur by chance in the data stream
+				dashdash	= '--',
+				crlf		= '\r\n',
+				data		= '';
+
+			// Instruction for data generation taken from http://www.paraesthesia.com/archive/2009/12/16/posting-multipartform-data-using-.net-webrequest.aspx
+			/*
+				Generate a "boundary." A boundary is a unique string that serves as a delimiter between each of the form values you'll be sending in your request. Usually these boundaries look something like
+					---------------------------7d01ecf406a6
+				with a bunch of dashes and a unique value.
+
+				Set the request content type to multipart/form-data; boundary= and your boundary, like:
+					multipart/form-data; boundary=---------------------------7d01ecf406a6
+
+				Any time you write a standard form value to the request stream, you'll write:
+					Two dashes.
+					Your boundary.
+					One CRLF (\r\n).
+					A content-disposition header that tells the name of the form field you'll be inserting. That looks like:
+						Content-Disposition: form-data; name="yourformfieldname"
+					Two CRLFs.
+					The value of the form field - not URL encoded.
+					One CRLF.
+
+				Any time you write a file to the request stream (for upload), you'll write:
+					Two dashes.
+					Your boundary.
+					One CRLF (\r\n).
+					A content-disposition header that tells the name of the form field corresponding to the file and the name of the file. That looks like:
+						Content-Disposition: form-data; name="yourformfieldname"; filename="somefile.jpg"
+					One CRLF.
+					A content-type header that says what the MIME type of the file is. That looks like:
+					Content-Type: image/jpg
+					Two CRLFs.
+					The entire contents of the file, byte for byte. It's OK to include binary content here. Don't base-64 encode it or anything, just stream it on in.
+					One CRLF.
+
+				At the end of your request, after writing all of your fields and files to the request, you'll write:
+					Two dashes.
+					Your boundary.
+					Two more dashes.
+			*/
+
+			// Meta
+			$.each(this.File.meta, function(index, meta)
+			{
+				data += dashdash + boundary + crlf;
+				data += 'Content-Disposition: form-data; name="' + meta.name + '"' + crlf + crlf;
+				data += meta.value;
+				data += crlf;
+			});
+
+			// Binary
+			data += dashdash + boundary + crlf;
+			data += 'Content-Disposition: form-data; name="' + settings.fileParamName + '"; filename="' + File.name + '"' + crlf;
+			data += 'Content-Type: ' + File.type + crlf + crlf;
+			data += e.target.result; // e.target.result is the binary data that FileReader() provides
+			data += crlf;
+
+			// End delimiter
+			data += dashdash + boundary + dashdash;
+
+
+			var XHR = new XMLHttpRequest();
+			XHR.open("POST", settings.url, true);
+			XHR.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
+			//XHR.File = File;
+
+
+			XHR.onerror = function(e)
+			{
+				settings.onUploadFailed(File);
+				uploadFinished();
+			};
+
+			XHR.onload = function(e)
+			{
+				settings.onUploadSucceeded(File, this.responseText);
+				uploadFinished();
+			};
+
+			XHR.upload.onprogress = function(e)
+			{
+				if (e.lengthComputable)
+					settings.onProgressUpdated(File, e.loaded / e.total);
+			};
+
+			XHR.sendAsBinary(data);
+		}
+
+		FR.readAsBinaryString(File);
+	}
+
+	var methods = {
+		init: function( options ) {
+
+			// This seems to extend the XMLHttpRequest object
+			if( !XMLHttpRequest.prototype.sendAsBinary )
+			{
+				XMLHttpRequest.prototype.sendAsBinary = function(datastr)
+				{
+					var byteValue = function(x)
+					{
+						return x.charCodeAt(0) & 0xff;
+					}
+
+					var ords = Array.prototype.map.call(datastr, byteValue);
+					var ui8a = new Uint8Array(ords);
+					this.send(ui8a.buffer);
+				}
+			}
+
+
+			settings = $.extend(default_settings, options);
+
+			return this.each(function(){
+
+				$(this)
+					.bind('drop.filedrop', eventDrop)
+					.bind('dragover.filedrop', eventDragOver)
+					//.find('*').andSelf()
+					.bind('dragenter.filedrop', eventDragEnter)
+					.bind('dragleave.filedrop', eventDragLeave);
+
+
+
+				// I think this is to prevent the browser from opening the file
+				$(document)
+					.bind('drop.filedrop', eventKillDefault)
+					.bind('dragenter.filedrop', eventKillDefault)
+					.bind('dragover.filedrop', eventKillDefault)
+					.bind('dragleave.filedrop', eventKillDefault);
+			});
+		},
+		destroy: function()
+		{
+			return this.each(function(){
+				$(window).unbind('.dropUpload');
+			});
+		}
+	};
+
+	$.fn.dropUpload = function( method ) {
+
+		// Method calling logic
+		if ( methods[method] ) {
+			return methods[ method ].apply( this, Array.prototype.slice.call( arguments, 1 ));
+		} else if ( typeof method === 'object' || ! method ) {
+			return methods.init.apply( this, arguments );
+		} else {
+			$.error( 'Method ' +  method + ' does not exist on jQuery.dropUpload' );
+		}
+	};
+
+})( jQuery );
