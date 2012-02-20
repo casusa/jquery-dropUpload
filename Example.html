@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+</head>
+<body>
+
+	<form action="/ReceiveFile.php" method="post">
+		<div class="dropUpload">
+			
+			<input type="text" name="customVariable1" value="Just a custom variable that are attached to the file on at drop-time">
+
+			<div class="dropArea">
+				<span>Drop Files Here</span>
+			</div>
+
+			<div class="queue">
+				<div class="items">
+
+				</div>
+			</div>
+
+			<div class="messages">
+
+			</div>
+
+		</div>
+	</form>
+
+	<script type="text/javascript">
+		var queueItemTemplate = '<div class="item"><div class="fileName">-</div><div class="progressBar"><div class="progress"></div></div></div>';
+
+		var dropUpload = $('.dropUpload');
+		var dropArea = dropUpload.find('.dropArea');
+
+		var queue = dropUpload.find('.queue');
+		var messages = dropUpload.find('.messages');
+		var form = dropUpload.parent('form');
+
+		dropArea.dropUpload(
+		{
+			'url': form.attr('action'),
+			'fileMeta': function()
+			{
+				return form.serializeArray(); // Attach form data to each dropped file
+			},
+			'fileParamName': 'file',
+			'fileSizeMax': null,
+			'onDragEnter': function()
+			{
+				dropArea.addClass('isHovering');
+			},
+			'onDragLeave': function()
+			{
+				dropArea.removeClass('isHovering');
+			},
+			'onDropSuccess': function()
+			{
+				messages.html(''); // Empties message area at drop
+				dropArea.removeClass('isHovering');
+			},
+			'onProgressUpdated': function(File, progress)
+			{
+				File.queueItem.find('.progress').css('width', (progress * 100) + '%');
+			},
+			'onUploadCompleted': function(File)
+			{
+				File.queueItem.remove(); // Removed DOM queue item on completion
+			},
+			'onUploadQueued': function(File) // Created DOM queue item and attaches it to the File object
+			{
+				var qi = $(queueItemTemplate);
+				qi.find('.fileName').html(File.name);
+				qi.appendTo(queue);
+				File.queueItem = qi;
+			},
+			'onUploadSucceeded': function(File, response)
+			{
+				var json = jQuery.parseJSON(response);
+
+				if( json && json.length )
+					messages.prepend(json[0].html);
+			}
+		});
+	</script>
+
+</body>
+</html>
