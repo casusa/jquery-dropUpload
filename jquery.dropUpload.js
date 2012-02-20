@@ -308,6 +308,14 @@
 
 			settings = $.extend(default_settings, userOptions);
 
+			// I think this is to prevent the browser from opening the file
+			$(document)
+				.bind('drop.dropUpload', eventKillDefault)
+				.bind('dragenter.dropUpload', eventKillDefault)
+				.bind('dragover.dropUpload', eventKillDefault)
+				.bind('dragleave.dropUpload', eventKillDefault)
+				;
+
 			return this.each(function(){
 
 				$(this)
@@ -318,20 +326,15 @@
 					.bind('dragenter.dropUpload', eventDragEnter)
 					.bind('dragleave.dropUpload', eventDragLeave)
 					;
-
-				// I think this is to prevent the browser from opening the file
-				$(document)
-					.bind('drop.dropUpload', eventKillDefault)
-					.bind('dragenter.dropUpload', eventKillDefault)
-					.bind('dragover.dropUpload', eventKillDefault)
-					.bind('dragleave.dropUpload', eventKillDefault)
-					;
 			});
 		},
 		destroy: function()
 		{
+			$(document).unbind('.dropUpload');
+
 			return this.each(function(){
-				$(window).unbind('.dropUpload');
+				$(this).unbind('.dropUpload');
+
 			});
 		}
 	};
