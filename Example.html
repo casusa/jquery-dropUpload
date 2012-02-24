@@ -83,20 +83,24 @@
 			{
 				File.queueItem.find('.progress').css('width', (progress * 100) + '%');
 			},
-			'onUploadCompleted': function(File)
+			'onFileCompleted': function(File)
 			{
 				File.queueItem.remove(); // Removed DOM queue item on completion
 			},
-			'onUploadQueued': function(File) // Created DOM queue item and attaches it to the File object
+			'onFileQueued': function(File) // Created DOM queue item and attaches it to the File object
 			{
 				var qi = $(queueItemTemplate);
 				qi.find('.fileName').html(File.name);
 				qi.appendTo(queue);
 				File.queueItem = qi;
 			},
-			'onUploadSucceeded': function(File, response)
+			'onFileSucceeded': function(File, response)
 			{
 				messages.text(response);
+			},
+			'onQueueCompleted': function()
+			{
+				alert("All done");
 			}
 		});
 	</script>

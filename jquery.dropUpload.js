@@ -44,16 +44,18 @@
 			'onDragOver': emptyCallback,
 			'onDragLeave': emptyCallback,
 
-			'onProgressUpdated': emptyCallback,
-
-			'onUploadCompleted': emptyCallback,
-			'onUploadFailed': function(File, message)
+			'onFileCompleted': emptyCallback,
+			'onFileFailed': function(File, message)
 			{
 				alert(message);
 			},
-			'onUploadQueued': emptyCallback,
-			'onUploadSucceeded': emptyCallback,
-			'onUploadStarted': emptyCallback,
+			'onFileQueued': emptyCallback,
+			'onFileSucceeded': emptyCallback,
+			'onFileStarted': emptyCallback,
+
+			'onProgressUpdated': emptyCallback,
+
+			'onQueueCompleted': emptyCallback,
 
 			'url': ''
 			},
@@ -144,7 +146,7 @@
 
 		queue.push(File);
 
-		settings.onUploadQueued(File);
+		settings.onFileQueued(File);
 	}
 
 	// This function not totally quirk free as of now
@@ -164,7 +166,7 @@
 			catch(e)
 			{
 				// Inform plugin about failure
-				settings.onUploadFailed(File, e.message);
+				settings.onFileFailed(File, e.message);
 			}
 		}
 
@@ -175,6 +177,8 @@
 	{
 		loopSize++;
 
+		settings.onFileStarted(File);
+
 		var File = File;
 		var FR = new FileReader();
 
@@ -183,10 +187,14 @@
 		{
 			loopSize--;
 
-			settings.onUploadCompleted(File);
+			settings.onProgressUpdated(File, 1);
+			settings.onFileCompleted(File);
 
 			if( typeof onCompleteCallback == 'function' )
 				onCompleteCallback();
+
+			if( loopSize == 0 )
+				settings.onQueueCompleted();
 		}
 
 		FR.File = File;
@@ -263,13 +271,13 @@
 
 			XHR.onerror = function(e)
 			{
-				settings.onUploadFailed(File);
+				settings.onFileFailed(File);
 				uploadFinished();
 			};
 
 			XHR.onload = function(e) // Triggers on completed upload
 			{
-				settings.onUploadSucceeded(File, this.responseText); // reponseText is the response body printed by the server
+				settings.onFileSucceeded(File, this.responseText); // reponseText is the response body printed by the server
 				uploadFinished();
 			};
 
