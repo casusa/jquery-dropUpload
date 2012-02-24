@@ -12,7 +12,9 @@ Based on the examples of Mika Tuupola (http://www.appelsiini.net/2009/10/html5-d
 
 - Improved code documentation
 
-- File size limit in bytesThis script focuses on minimalism and doesn't do anything
+- Data attached to a File tended to get lost with jquery.filedrop when several files are were queued
+
+- File size limit in bytes
 
 
 Key differences to jquery.filedrop
@@ -20,6 +22,8 @@ Key differences to jquery.filedrop
 - Added onFileQueued event
 
 - Added onQueueCompleted event
+
+- Custom meta data is supplied per file
 
 - File size limit should be provided in bytes
 
