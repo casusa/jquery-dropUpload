@@ -17,11 +17,15 @@ Based on the examples of Mika Tuupola (http://www.appelsiini.net/2009/10/html5-d
 
 Key differences to jquery.filedrop
 ---------------
+- Added onFileQueued event
+
+- Added onQueueCompleted event
+
 - File size limit should be provided in bytes
 
 - No speed calculation
 
-- Response not parsed for JSON automatically anymore. If you expect JSON as response you have to run jQuery.parseJSON() in your onUploadSucceeded callback
+- Response not parsed for JSON automatically anymore. If you expect JSON as response you have to run jQuery.parseJSON() in your onFileSucceeded callback
 
 
 Browser Support
