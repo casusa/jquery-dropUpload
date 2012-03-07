@@ -13,10 +13,10 @@
 		https://github.com/pomle/jquery-dropUpload
 
 	Version:
-		0.5.0
+		0.5.1
 
 	Usage:
-		Examples ahoy
+		See Example.html
 */
 
 (function( $ ){
@@ -160,13 +160,16 @@
 
 			try
 			{
+				loopSize++;
 				// uploadLoopEngage is sent as a callback for when the upload completes
 				uploadFile(File, uploadLoopEngage);
 			}
 			catch(e)
 			{
+				loopSize--;
 				// Inform plugin about failure
 				settings.onFileFailed(File, e.message);
+				settings.onFileCompleted(File);
 			}
 		}
 
@@ -175,7 +178,7 @@
 
 	var uploadFile = function(File, onCompleteCallback)
 	{
-		loopSize++;
+		//loopSize++;
 
 		settings.onFileStarted(File);
 
@@ -317,31 +320,32 @@
 			settings = $.extend(default_settings, userOptions);
 
 			// I think this is to prevent the browser from opening the file
-			$(document)
-				.bind('drop.dropUpload', eventKillDefault)
-				.bind('dragenter.dropUpload', eventKillDefault)
-				.bind('dragover.dropUpload', eventKillDefault)
-				.bind('dragleave.dropUpload', eventKillDefault)
+			$(window)
+				.off('.dropUpload')
+				.on('drop.dropUpload', eventKillDefault)
+				.on('dragenter.dropUpload', eventKillDefault)
+				.on('dragover.dropUpload', eventKillDefault)
+				.on('dragleave.dropUpload', eventKillDefault)
 				;
 
 			return this.each(function(){
 
 				$(this)
-					.bind('drop.dropUpload', eventDrop)
-					.bind('dragover.dropUpload', eventDragOver)
+					.on('drop.dropUpload', eventDrop)
+					.on('dragover.dropUpload', eventDragOver)
 
 					// dragenter and dragleave are inherently buggy and will cause problems with text
-					.bind('dragenter.dropUpload', eventDragEnter)
-					.bind('dragleave.dropUpload', eventDragLeave)
+					.on('dragenter.dropUpload', eventDragEnter)
+					.on('dragleave.dropUpload', eventDragLeave)
 					;
 			});
 		},
 		destroy: function()
 		{
-			$(document).unbind('.dropUpload');
+			$(window).off('.dropUpload');
 
 			return this.each(function(){
-				$(this).unbind('.dropUpload');
+				$(this).off('.dropUpload');
 
 			});
 		}
