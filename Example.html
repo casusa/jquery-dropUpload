@@ -7,7 +7,7 @@
 			color: #fff;
 			font-family: sans-serif;
 		}
-		
+
 		.dropUpload .dropArea {
 			background-color: rgba(255,255,255, .3);
 			height: 120px;
@@ -20,14 +20,14 @@
 		}
 	</style>
 
-	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 	<script type="text/javascript" src="jquery.dropUpload.js"></script>
 </head>
 <body>
 
 	<form action="ReceiveFile.php" method="post">
 		<div class="dropUpload">
-			
+
 			<input type="text" name="customVariable1" value="Just a custom variable that are attached to the file on at drop-time">
 
 			<div class="dropArea">
@@ -62,7 +62,12 @@
 			'url': form.attr('action'),
 			'fileMeta': function()
 			{
-				return form.serializeArray(); // Attach form data to each dropped file
+				var meta = {};
+				$.each(form.serializeArray(), function(i) {
+					meta[this.name] = this.value;
+				});
+
+				return meta; // Attach form data to each dropped file
 			},
 			'fileParamName': 'file',
 			'fileSizeMax': null,

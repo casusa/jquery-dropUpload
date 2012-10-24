@@ -13,7 +13,7 @@
 		https://github.com/pomle/jquery-dropUpload
 
 	Version:
-		0.5.3
+		0.5.4
 
 	Usage:
 		See Example.html
@@ -85,18 +85,7 @@
 				return false;
 			}
 
-			// Iterate over all files and add to queue if isFileAccepted() returns true
-			filesIterator(FileList, function(File)
-			{
-				if( isFileAccepted(File) ) queueFile(File);
-			});
-
-			/*
-				Engage upload loop if not already running
-				Notice that it is allowed to start several instances, but it's recommended to control the simultaneous queue length with fileSimTransfers setting
-			*/
-			if( !isLoopRunning )
-				uploadLoopEngage();
+			filesHandler(FileList);
 
 			return true;
 		}
@@ -122,6 +111,22 @@
 		{
 			e.preventDefault();
 			return false;
+		}
+
+		var filesHandler = function(FileList)
+		{
+			// Iterate over all files and add to queue if isFileAccepted() returns true
+			filesIterator(FileList, function(File) {
+				if(isFileAccepted(File))
+					queueFile(File);
+			});
+
+			/*
+				Engage upload loop if not already running
+				Notice that it is allowed to start several instances, but it's recommended to control the simultaneous queue length with fileSimTransfers setting
+			*/
+			if( !isLoopRunning )
+				uploadLoopEngage();
 		}
 
 		// Lets us iterate over file lists in a consistent manner
@@ -259,7 +264,15 @@
 
 				return this.each(function(){
 
+					var fileSelect = $('<input type="file" multiple accept="*">');
+
+					fileSelect.on("change", function(e) {
+						filesHandler(this.files);
+					});
+
 					$(this)
+						.on('click.dropUpload', function(e) { fileSelect.click(); })
+
 						.on('drop.dropUpload', eventDrop)
 						.on('dragover.dropUpload', eventDragOver)
 
