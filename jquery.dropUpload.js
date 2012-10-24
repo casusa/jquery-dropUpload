@@ -13,7 +13,7 @@
 		https://github.com/pomle/jquery-dropUpload
 
 	Version:
-		0.5.2
+		0.5.3
 
 	Usage:
 		See Example.html
@@ -205,74 +205,18 @@
 			FR.File = File;
 			FR.onload = function(e) // Prepares file and meta data for the POST-stream
 			{
-				var
-					boundary	= '---------------------------7d01ecf406a6'; // Boundary should be a string that is unlikely to occur by chance in the data stream
-					dashdash	= '--',
-					crlf		= '\r\n',
-					data		= '';
-
-				// Instruction for data generation taken from http://www.paraesthesia.com/archive/2009/12/16/posting-multipartform-data-using-.net-webrequest.aspx
-				/*
-					Generate a "boundary." A boundary is a unique string that serves as a delimiter between each of the form values you'll be sending in your request. Usually these boundaries look something like
-						---------------------------7d01ecf406a6
-					with a bunch of dashes and a unique value.
-
-					Set the request content type to multipart/form-data; boundary= and your boundary, like:
-						multipart/form-data; boundary=---------------------------7d01ecf406a6
-
-					Any time you write a standard form value to the request stream, you'll write:
-						Two dashes.
-						Your boundary.
-						One CRLF (\r\n).
-						A content-disposition header that tells the name of the form field you'll be inserting. That looks like:
-							Content-Disposition: form-data; name="yourformfieldname"
-						Two CRLFs.
-						The value of the form field - not URL encoded.
-						One CRLF.
-
-					Any time you write a file to the request stream (for upload), you'll write:
-						Two dashes.
-						Your boundary.
-						One CRLF (\r\n).
-						A content-disposition header that tells the name of the form field corresponding to the file and the name of the file. That looks like:
-							Content-Disposition: form-data; name="yourformfieldname"; filename="somefile.jpg"
-						One CRLF.
-						A content-type header that says what the MIME type of the file is. That looks like:
-						Content-Type: image/jpg
-						Two CRLFs.
-						The entire contents of the file, byte for byte. It's OK to include binary content here. Don't base-64 encode it or anything, just stream it on in.
-						One CRLF.
-
-					At the end of your request, after writing all of your fields and files to the request, you'll write:
-						Two dashes.
-						Your boundary.
-						Two more dashes.
-				*/
+				var payload = new FormData();
 
 				// Adds Meta data (connected by user defined function fileMeta()
-				$.each(this.File.meta, function(index, meta)
+				$.each(this.File.meta, function(name, value)
 				{
-					data += dashdash + boundary + crlf;
-					data += 'Content-Disposition: form-data; name="' + meta.name + '"' + crlf + crlf;
-					data += meta.value;
-					data += crlf;
+					payload.append(name, value);
 				});
 
-				// Adds Binary data
-				data += dashdash + boundary + crlf;
-				data += 'Content-Disposition: form-data; name="' + settings.fileParamName + '"; filename="' + File.name + '"' + crlf;
-				data += 'Content-Type: ' + File.type + crlf + crlf;
-				data += e.target.result; // e.target.result is the binary data that FileReader() provides
-				data += crlf;
-
-				// End delimiter
-				data += dashdash + boundary + dashdash;
-
+				payload.append(File.name, File);
 
 				var XHR = new XMLHttpRequest();
 				XHR.open("POST", settings.url, true); // Perform asynchronous transfer
-				XHR.setRequestHeader('Content-Type', 'multipart/form-data; boundary=' + boundary);
-
 
 				XHR.onerror = function(e)
 				{
@@ -292,7 +236,7 @@
 						settings.onProgressUpdated(File, e.loaded / e.total);
 				};
 
-				XHR.sendAsBinary(data); // Initiates sending
+				XHR.send(payload);
 			}
 
 			// Initiates reading and puts us in FR.onload on complete
@@ -301,22 +245,6 @@
 
 		var methods = {
 			init: function( userOptions ) {
-
-				// This seems to extend the XMLHttpRequest object, not totally sure exactly why/if this is needed as of now
-				if( !XMLHttpRequest.prototype.sendAsBinary )
-				{
-					XMLHttpRequest.prototype.sendAsBinary = function(datastr)
-					{
-						var byteValue = function(x)
-						{
-							return x.charCodeAt(0) & 0xff;
-						}
-
-						var ords = Array.prototype.map.call(datastr, byteValue);
-						var ui8a = new Uint8Array(ords);
-						this.send(ui8a.buffer);
-					}
-				}
 
 				settings = $.extend({}, defaultSettings, userOptions);
 
