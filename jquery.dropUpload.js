@@ -13,7 +13,7 @@
 		https://github.com/pomle/jquery-dropUpload
 
 	Version:
-		0.5.4
+		0.5.5
 
 	Usage:
 		See Example.html
@@ -218,7 +218,7 @@
 					payload.append(name, value);
 				});
 
-				payload.append(File.name, File);
+				payload.append(settings.fileParamName, File);
 
 				var XHR = new XMLHttpRequest();
 				XHR.open("POST", settings.url, true); // Perform asynchronous transfer
