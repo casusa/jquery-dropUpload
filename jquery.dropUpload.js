@@ -189,7 +189,6 @@
 
 			settings.onFileStarted(File);
 
-			var File = File;
 			var FR = new FileReader();
 
 			// Defines the call that is made when upload has completed
@@ -213,8 +212,7 @@
 				var payload = new FormData();
 
 				// Adds Meta data (connected by user defined function fileMeta()
-				$.each(this.File.meta, function(name, value)
-				{
+				$.each(this.File.meta, function(name, value) {
 					payload.append(name, value);
 				});
 
@@ -222,6 +220,12 @@
 
 				var XHR = new XMLHttpRequest();
 				XHR.open("POST", settings.url, true); // Perform asynchronous transfer
+
+				File.cancel = function()
+				{
+					XHR.abort();
+					uploadFinished();
+				};
 
 				XHR.onerror = function(e)
 				{
